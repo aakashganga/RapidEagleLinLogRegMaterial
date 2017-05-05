@@ -1,0 +1,67 @@
+---
+title: "Linear Regression"
+output: html_notebook
+---
+
+# Read the train and test files
+
+```{r}
+pisaTrain<-read.csv("pisa2009train.csv")
+pisaTest<-read.csv("pisa2009test.csv")
+```
+
+# Find the Reading Score by Gender
+
+```{r}
+with(pisaTrain,tapply(readingScore,male,mean,na.rm=TRUE))
+```
+
+# Remove missing values
+```{r}
+pisaTrain = na.omit(pisaTrain)
+pisaTest = na.omit(pisaTest)  
+```
+
+Given "White" is the predominant race in the US, let us use that as reference.
+Remember that for categorical independent variables, coeffients of other levels are evaluated with respect to a base. Usually the first categorical value is chosen as a base.
+
+```{r}
+pisaTrain$raceeth = relevel(pisaTrain$raceeth, "White")
+pisaTest$raceeth = relevel(pisaTest$raceeth, "White")
+```
+
+# Convert the male variable (indicating gender) to factor for better interpretability
+```{r}
+pisaTrain$male = as.factor(pisaTrain$male)
+pisaTest$male = as.factor(pisaTest$male)
+```
+
+# Run the model
+```{r}
+lmScore<-lm(readingScore~.,data=pisaTrain)
+summary(lmScore)
+```
+
+# Compute training RMSE
+```{r}
+SSE = sum(lmScore$residuals^2)
+SSE
+RMSE = sqrt(SSE/nrow(pisaTrain))
+RMSE
+```
+
+# Generate Predictions
+```{r}
+predTest<-predict(lmScore,newdata=pisaTest)
+summary(predTest)
+```
+
+# calculate test RMSE and R2
+```{r}
+SSE = sum((pisaTest$readingScore - predTest)^2)
+RMSE = sqrt(SSE/nrow(pisaTest))
+mean(pisaTest$readingScore)
+SST=sum((pisaTest$readingScore - mean(pisaTest$readingScore))^2)
+R2=1-(SSE/SST)
+```
+

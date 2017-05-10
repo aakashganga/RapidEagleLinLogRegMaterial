@@ -1,0 +1,131 @@
+---
+title: "loans"
+output: html_notebook
+---
+
+# Read the file and understand more about the dataset
+
+```{r}
+loans<-read.csv("loans.csv")
+summary(loans)
+str(loans)
+```
+
+# Understand the proportion of loans that are not fully paid
+
+```{r}
+mytable<-with(loans,table(not.fully.paid))
+prop.table(mytable)
+```
+
+# Remove rows with missing values using complete.cases function
+Also take a proportion of loans not fully paid after cleaning
+Here, the code is made not to execute as imputations done in the next R block will take care of the missing values
+If you want to execute this block, change the value of T to 1
+
+```{r}
+T=2
+if (T==1){
+  nrow(loans)
+  loans_complete<-complete.cases(loans)
+  nrow(loans[loans_complete,])
+  mtable2<-with(loans[loans_complete,],table(not.fully.paid))
+  prop.table(mtable2)
+}
+```
+
+# Imputations
+Another way to account of missing values. The idea is you complete missing values using some heuristic choices. A common way to remember this is replace missing values with mean of the column.
+mice is a package that is used for imputations
+Here we want to impute missing values.
+We set vars.for.imputation to all variables in the data frame except for not.fully.paid, to impute the values using all of the other independent variables.
+
+```{r}
+library(mice)
+set.seed(144)
+#We set vars.for.imputation to all variables in the data frame except for not.fully.paid, to impute the values using all of the other independent variables.
+vars.for.imputation = setdiff(names(loans), "not.fully.paid")
+imputed = complete(mice(loans[vars.for.imputation]))
+loans[vars.for.imputation] = imputed
+```
+
+# Split the dataset by not.fully.paid column. 
+70% of the rows got in the training data set and remaining in the test set
+
+
+```{r}
+# Just in case the OS has created a different version based on mice, let us use a dataset to make
+# sure that results are same as the remaining class
+#loans<-read.csv("loans_imputed.csv")
+library(caTools)
+set.seed(144)
+split = sample.split(loans$not.fully.paid, SplitRatio = 0.7)
+train = subset(loans, split == TRUE)
+test = subset(loans, split == FALSE)
+```
+
+# Build the first logistic regression model
+Remember "purpose" is a categorical variable. So, all the values for purpose show up as variables in the model. They need to be interpreted with respect to the first value in the purpose variable i.e. purpose == 1
+ 
+So, for the regression output below, when purpose==2, the log of odds ratio is 0.61 less than that with purpose==1. The coefficient of purpose==1 will be the intercept
+
+The actual values of purpose can be found by executing levels(train$purpose) command. The numbers are in the same order as the output of the above command
+```{r}
+loansmodel1=glm(not.fully.paid~.
+                ,data=train,family="binomial")
+summary(loansmodel1)
+# A and B are identical, except for the FICO scores. A's FICO score is 700 and B's is 710
+# FICO coefficient = -9.317e-03
+# odd(A)/odd(B) = exp(-9.317e-03*700)/exp(-9.317e-03*710)
+# Test set predictions
+```
+# Evaluate the model
+Evaluate the model and calculate accuracy of the model
+```{r}
+test$predicted.risk = predict(loansmodel1, newdata=test, type="response")
+table(test$not.fully.paid,test$predicted.risk>=0.5)
+#  FALSE TRUE
+#0  2400   13
+#1   457    3
+# accuracy = 2403/2873
+# baseline accuracy
+table(test$not.fully.paid)
+#    0    1 
+# 2413  460 
+# baseline accuracy = 2413/2873
+```
+# Get AUC of the model
+The in-sample auc of the model is 67%. Remember this is the auc on the training dataset
+```{r}
+library("ROCR")
+ROCRpred = prediction(test$predicted.risk, test$not.fully.paid)
+as.numeric(performance(ROCRpred, "auc")@y.values)
+```
+
+# Get out-of-sample AUC of the model
+Out of sample AUC is 62%
+```{r}
+loansmodel2=glm(not.fully.paid~int.rate,data=train,family="binomial")
+summary(loansmodel2)
+testPrediction = predict(loansmodel2, newdata=test, type="response")
+max(testPrediction)
+table(test$not.fully.paid,testPrediction>=0.5)
+ROCRpred = prediction(testPrediction, test$not.fully.paid)
+as.numeric(performance(ROCRpred, "auc")@y.values)
+```
+# Plot the ROCR curve
+
+```{r}
+# Performance function
+ROCRperfLog = performance(ROCRpred, "tpr", "fpr")
+
+# Plot ROC curve
+plot(ROCRperfLog)
+
+# Add colors
+plot(ROCRperfLog, colorize=TRUE)
+```
+
+
+
+
